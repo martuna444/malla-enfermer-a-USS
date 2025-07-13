@@ -1,0 +1,208 @@
+
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Malla Interactiva - Enfermería USS</title>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      background: #fff0f5;
+      margin: 0;
+      padding: 20px;
+    }
+    h1 {
+      text-align: center;
+      margin-bottom: 30px;
+      color: #c2185b;
+    }
+    .semestre-container {
+      display: flex;
+      overflow-x: auto;
+      gap: 20px;
+      padding-bottom: 20px;
+    }
+    .semestre {
+      min-width: 200px;
+      background: #f8bbd0;
+      border-radius: 12px;
+      padding: 10px;
+      flex-shrink: 0;
+    }
+    .semestre h2 {
+      text-align: center;
+      font-size: 16px;
+      color: #880e4f;
+      margin-bottom: 10px;
+    }
+    .ramo {
+      background: #fce4ec;
+      border: 2px solid #f8bbd0;
+      border-radius: 8px;
+      padding: 10px;
+      margin: 6px 0;
+      cursor: pointer;
+      position: relative;
+      transition: 0.2s ease;
+    }
+    .ramo:hover {
+      background: #fddde6;
+    }
+    .ramo.aprobado {
+      background: #c8e6c9 !important;
+      text-decoration: line-through;
+      border-color: #66bb6a;
+    }
+    .ramo.bloqueado {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .estrella {
+      position: absolute;
+      top: 8px;
+      right: 10px;
+      font-size: 16px;
+      color: gold;
+    }
+    .modal {
+      display: none;
+      position: fixed;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.6);
+      justify-content: center;
+      align-items: center;
+    }
+    .modal-content {
+      background: white;
+      padding: 20px;
+      border-radius: 10px;
+      max-width: 400px;
+      width: 90%;
+      position: relative;
+    }
+    .close {
+      position: absolute;
+      top: 10px;
+      right: 15px;
+      cursor: pointer;
+      font-size: 18px;
+    }
+    #exportBtn, #importInput {
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+  <h1>Malla Interactiva Enfermería - USS</h1>
+  <button id="exportBtn">Exportar JSON</button>
+  <input type="file" id="importInput" accept=".json">
+
+  <div class="semestre-container" id="malla"></div>
+
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <span class="close" onclick="cerrarModal()">&times;</span>
+      <h2 id="modalTitulo"></h2>
+      <label>Créditos: <input type="number" id="modalCreditos"></label><br><br>
+      <label>Emojis: <input type="text" id="modalEmojis"></label><br><br>
+      <button onclick="guardarDatosModal()">Guardar</button>
+    </div>
+  </div>
+
+  <script>
+    let ramos = [
+      { nombre: "Morfología Básica", semestre: 1, prerequisitos: [], creditos: 5, emojis: "", favorito: false, aprobado: false },
+      { nombre: "Integrado Fisiología-Fisiopatología I", semestre: 2, prerequisitos: ["Morfología Básica"], creditos: 6, emojis: "", favorito: false, aprobado: false }
+    ];
+    const malla = document.getElementById("malla");
+    const modal = document.getElementById("modal");
+    let ramoActivo = null;
+
+    function renderMalla() {
+      malla.innerHTML = "";
+      const semestres = {};
+      ramos.forEach(r => {
+        if (!semestres[r.semestre]) semestres[r.semestre] = [];
+        semestres[r.semestre].push(r);
+      });
+
+      for (let s in semestres) {
+        const col = document.createElement("div");
+        col.className = "semestre";
+        const title = document.createElement("h2");
+        title.textContent = "Semestre " + s;
+        col.appendChild(title);
+
+        semestres[s].forEach(ramo => {
+          const div = document.createElement("div");
+          div.className = "ramo";
+          if (ramo.aprobado) div.classList.add("aprobado");
+          if (!prerrequisitosAprobados(ramo)) div.classList.add("bloqueado");
+          div.textContent = ramo.nombre + " " + (ramo.emojis || "");
+          if (ramo.favorito) {
+            const star = document.createElement("span");
+            star.className = "estrella";
+            star.textContent = "⭐";
+            div.appendChild(star);
+          }
+          div.oncontextmenu = (e) => {
+            e.preventDefault();
+            ramo.aprobado = !ramo.aprobado;
+            renderMalla();
+          };
+          div.onclick = () => {
+            ramoActivo = ramo;
+            document.getElementById("modalTitulo").textContent = ramo.nombre;
+            document.getElementById("modalCreditos").value = ramo.creditos || "";
+            document.getElementById("modalEmojis").value = ramo.emojis || "";
+            modal.style.display = "flex";
+          };
+          col.appendChild(div);
+        });
+        malla.appendChild(col);
+      }
+    }
+
+    function prerrequisitosAprobados(ramo) {
+      return ramo.prerequisitos.every(pr => {
+        const req = ramos.find(r => r.nombre === pr);
+        return req && req.aprobado;
+      });
+    }
+
+    function cerrarModal() {
+      modal.style.display = "none";
+    }
+
+    function guardarDatosModal() {
+      ramoActivo.creditos = parseInt(document.getElementById("modalCreditos").value);
+      ramoActivo.emojis = document.getElementById("modalEmojis").value;
+      ramoActivo.favorito = ramoActivo.emojis.includes("⭐");
+      cerrarModal();
+      renderMalla();
+    }
+
+    document.getElementById("exportBtn").onclick = () => {
+      const blob = new Blob([JSON.stringify(ramos)], { type: "application/json" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "malla.json";
+      link.click();
+    };
+
+    document.getElementById("importInput").onchange = (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        ramos = JSON.parse(reader.result);
+        renderMalla();
+      };
+      reader.readAsText(file);
+    };
+
+    renderMalla();
+  </script>
+</body>
+</html>
